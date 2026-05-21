@@ -4,21 +4,22 @@ from groq import Groq
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
+# ---------------- LOAD ENV ---------------- #
+
 load_dotenv()
 
-# Get Groq API Key
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Check API key
 if not GROQ_API_KEY:
-    st.error("⚠️ Groq API Key is missing!")
+    st.error("⚠️ GROQ API Key is missing!")
     st.stop()
 
-# Initialize Groq client
+# ---------------- GROQ CLIENT ---------------- #
+
 client = Groq(api_key=GROQ_API_KEY)
 
-# Extract text from PDF
+# ---------------- PDF TEXT EXTRACTION ---------------- #
+
 def extract_text_from_pdf(pdf_file):
     try:
         pdf_bytes = pdf_file.read()
@@ -35,7 +36,8 @@ def extract_text_from_pdf(pdf_file):
     except Exception as e:
         return f"❌ Error reading PDF: {e}"
 
-# Generate questions using Groq
+# ---------------- QUESTION GENERATION ---------------- #
+
 def generate_questions(pdf_file, num_questions):
 
     text = extract_text_from_pdf(pdf_file)
@@ -43,7 +45,7 @@ def generate_questions(pdf_file, num_questions):
     if not text:
         return "❌ No text found in PDF."
 
-    # Reduce token usage
+    # Reduce large PDF size
     text = text[:5000]
 
     prompt = f"""
@@ -51,16 +53,25 @@ def generate_questions(pdf_file, num_questions):
 
     Generate {num_questions} important exam questions.
 
-    Keep the questions concise and meaningful.
+    Rules:
+    - Questions should be concise
+    - Questions should be meaningful
+    - Avoid duplicate questions
+    - Format as numbered list
 
     Study Material:
     {text}
     """
 
     try:
+
         response = client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama-3.3-70b-versatile",
             messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert educational question generator."
+                },
                 {
                     "role": "user",
                     "content": prompt
@@ -75,19 +86,27 @@ def generate_questions(pdf_file, num_questions):
     except Exception as e:
         return f"❌ Error generating questions: {e}"
 
-# ---------------- UI ---------------- #
+# ---------------- STREAMLIT UI ---------------- #
+
+st.set_page_config(
+    page_title="AI Question Generator",
+    page_icon="📘",
+    layout="centered"
+)
 
 st.title("📘 AI Important Question Generator")
 
-st.write("Upload a PDF and generate important questions using Groq AI.")
+st.write(
+    "Upload a PDF and generate important exam questions using Groq AI."
+)
 
 # Upload PDF
 pdf_file = st.file_uploader(
-    "📂 Upload PDF",
+    "📂 Upload PDF File",
     type=["pdf"]
 )
 
-# Number input
+# Number of questions
 num_questions = st.number_input(
     "🔢 Number of Questions",
     min_value=1,
@@ -95,12 +114,12 @@ num_questions = st.number_input(
     value=5
 )
 
-# Generate button
+# Generate Button
 if st.button("🎯 Generate Questions"):
 
     if pdf_file is not None:
 
-        with st.spinner("⏳ Generating questions..."):
+        with st.spinner("⏳ Generating questions... Please wait!"):
 
             questions = generate_questions(
                 pdf_file,
@@ -112,4 +131,4 @@ if st.button("🎯 Generate Questions"):
         st.write(questions)
 
     else:
-        st.error("❌ Please upload a PDF first.")
+        st.error("❌ Please upload a PDF file first.")
