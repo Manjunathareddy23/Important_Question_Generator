@@ -39,7 +39,7 @@ def generate_questions(pdf_file, num_questions):
 
     try:
         # Use the correct model name from list_models() output
-        model = genai.GenerativeModel("gemini-1.5-pro")  
+        model = genai.GenerativeModel("gemini-1.5-flash")  
         response = model.generate_content(prompt)
         
         return response.text if response.text else "⚠️ Could not generate questions."
