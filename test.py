@@ -1,68 +1,107 @@
 import streamlit as st
-import fitz  # PyMuPDF for extracting text from PDFs
-import google.generativeai as genai
-import os  # For environment variables
-from dotenv import load_dotenv  # To load .env file
+import fitz  # PyMuPDF
+from google import genai
+import os
+from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load .env file
 load_dotenv()
 
-# Get API key from environment variable
+# Get API key
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Check if API key exists
+# Check API key
 if not GEMINI_API_KEY:
-    st.error("⚠️ Gemini API Key is missing! Set it as an environment variable.")
-else:
-    genai.configure(api_key=GEMINI_API_KEY)
+    st.error("⚠️ Gemini API Key is missing!")
+    st.stop()
 
-# Function to extract text from PDF
+# Gemini client
+client = genai.Client(api_key=GEMINI_API_KEY)
+
+# Extract text from PDF
 def extract_text_from_pdf(pdf_file):
     try:
-        doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
-        text = "\n".join(page.get_text("text") for page in doc)
+        pdf_bytes = pdf_file.read()
+
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+        text = ""
+
+        for page in doc:
+            text += page.get_text("text")
+
         return text.strip()
+
     except Exception as e:
-        return f"Error reading PDF: {e}"
+        return f"❌ Error reading PDF: {e}"
 
-# Function to generate important questions using Gemini API
+# Generate questions
 def generate_questions(pdf_file, num_questions):
-    if not pdf_file:
-        return "❌ Please upload a PDF file."
-    
-    text = extract_text_from_pdf(pdf_file)
-    
-    if not text:
-        return "❌ No text found in the PDF."
 
-    prompt = f"Extract {num_questions} important questions from the following content:\n\n{text}"
+    text = extract_text_from_pdf(pdf_file)
+
+    if not text:
+        return "❌ No text found in PDF."
+
+    # Prevent token overflow
+    text = text[:15000]
+
+    prompt = f"""
+    Read the following content carefully.
+
+    Generate {num_questions} important exam questions
+    from the content below.
+
+    Content:
+    {text}
+    """
 
     try:
-        # Use the correct model name from list_models() output
-        model = genai.GenerativeModel("gemini-pro")  
-        response = model.generate_content(prompt)
-        
-        return response.text if response.text else "⚠️ Could not generate questions."
-    
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
+
+        return response.text
+
     except Exception as e:
         return f"❌ Error generating questions: {e}"
 
-# Streamlit UI
-st.title("📘 AI-Based Important Question Generator")
-st.write("Upload a PDF and specify the number of important questions you need.")
+# ---------------- UI ---------------- #
 
-# File uploader
-pdf_file = st.file_uploader("📂 Upload a PDF", type=["pdf"])
+st.title("📘 AI Important Question Generator")
 
-# Number input for questions
-num_questions = st.number_input("🔢 Number of Questions", min_value=1, value=5)
+st.write("Upload a PDF and generate important questions using AI.")
+
+# Upload PDF
+pdf_file = st.file_uploader(
+    "📂 Upload PDF",
+    type=["pdf"]
+)
+
+# Number of questions
+num_questions = st.number_input(
+    "🔢 Number of Questions",
+    min_value=1,
+    max_value=50,
+    value=5
+)
 
 # Generate button
 if st.button("🎯 Generate Questions"):
-    if pdf_file:
-        with st.spinner("⏳ Generating Questions... Please wait!"):
-            questions = generate_questions(pdf_file, num_questions)
-        st.subheader("📜 Generated Questions:")
+
+    if pdf_file is not None:
+
+        with st.spinner("⏳ Generating questions..."):
+
+            questions = generate_questions(
+                pdf_file,
+                num_questions
+            )
+
+        st.subheader("📜 Generated Questions")
+
         st.write(questions)
+
     else:
-        st.error("❌ Please upload a PDF file first!")
+        st.error("❌ Please upload a PDF first.")
