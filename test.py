@@ -1,22 +1,22 @@
 import streamlit as st
 import fitz  # PyMuPDF
-from google import genai
+from groq import Groq
 import os
 from dotenv import load_dotenv
 
-# Load .env file
+# Load environment variables
 load_dotenv()
 
-# Get API key
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# Get Groq API Key
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # Check API key
-if not GEMINI_API_KEY:
-    st.error("⚠️ Gemini API Key is missing!")
+if not GROQ_API_KEY:
+    st.error("⚠️ Groq API Key is missing!")
     st.stop()
 
-# Gemini client
-client = genai.Client(api_key=GEMINI_API_KEY)
+# Initialize Groq client
+client = Groq(api_key=GROQ_API_KEY)
 
 # Extract text from PDF
 def extract_text_from_pdf(pdf_file):
@@ -35,7 +35,7 @@ def extract_text_from_pdf(pdf_file):
     except Exception as e:
         return f"❌ Error reading PDF: {e}"
 
-# Generate questions
+# Generate questions using Groq
 def generate_questions(pdf_file, num_questions):
 
     text = extract_text_from_pdf(pdf_file)
@@ -43,26 +43,34 @@ def generate_questions(pdf_file, num_questions):
     if not text:
         return "❌ No text found in PDF."
 
-    # Prevent token overflow
-    text = text[:15000]
+    # Reduce token usage
+    text = text[:5000]
 
     prompt = f"""
-    Read the following content carefully.
+    Read the following study material carefully.
 
-    Generate {num_questions} important exam questions
-    from the content below.
+    Generate {num_questions} important exam questions.
 
-    Content:
+    Keep the questions concise and meaningful.
+
+    Study Material:
     {text}
     """
 
     try:
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt
+        response = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.5,
+            max_tokens=1024
         )
 
-        return response.text
+        return response.choices[0].message.content
 
     except Exception as e:
         return f"❌ Error generating questions: {e}"
@@ -71,7 +79,7 @@ def generate_questions(pdf_file, num_questions):
 
 st.title("📘 AI Important Question Generator")
 
-st.write("Upload a PDF and generate important questions using AI.")
+st.write("Upload a PDF and generate important questions using Groq AI.")
 
 # Upload PDF
 pdf_file = st.file_uploader(
@@ -79,7 +87,7 @@ pdf_file = st.file_uploader(
     type=["pdf"]
 )
 
-# Number of questions
+# Number input
 num_questions = st.number_input(
     "🔢 Number of Questions",
     min_value=1,
